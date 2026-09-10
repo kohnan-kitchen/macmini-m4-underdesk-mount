@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.gcode
+*.3mf
+.venv/
+assembly_preview.stl
+section_*.stl
