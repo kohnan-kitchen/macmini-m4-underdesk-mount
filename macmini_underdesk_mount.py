@@ -21,8 +21,10 @@
 
 ■ 設計方針
   - 設置姿勢のまま印刷する。底枠がプレートに接地し、片持ちの下向き面（サポートが
-    無いと崩れる面）を作らない。残るのはフランジ下面のリブ間ブリッジ 22mm だけで、
-    45°リブと肉抜き窓の切妻は自己支持できる。スクリプトがこれを毎回実測して検証する。
+    無いと崩れる面）を作らない。自己支持させる面は SELF_SUPPORT_DEG(60°) に立ててあり、
+    スライサーの既定しきい値(55°前後)より急なのでサポートが付かない。残るのは
+    フランジ下面のリブ間ブリッジ 14mm と、皿面取りの円錐(45°, φ9mm)だけ。
+    スクリプトが毎回この傾きを実測して検証する。
   - フランジは外向き。内向きにすると下面が幅16mmの宙浮きになって支えられない。
     外向きなら45°リブで支えられ、しかも本体を入れたままビスを締められる。
   - 左右を繋ぐ渡し材は底の前後端、本体の外側に置く。Mac mini M4 は底面のほぼ全体が
@@ -30,6 +32,8 @@
     底面には受け皿の縁 7.5mm 以外いっさいかからないようにしている。
   - 底が「側面の受け皿＋前後の渡し材」で閉じた枠になるので、左右の間隔が
     荷重やビスの緩みで開くことがない（＝本体が落ちない）。
+  - 前後の渡し材を受け皿の上面より STOP_H 立ち上げて前後方向の滑りを止めてある。
+    ただし本体は天板まで LIFT_ROOM 持ち上がるので、持ち上げれば出し入れできる。
 
 ■ 座標系（設置姿勢＝印刷姿勢＝この STL の姿勢）
     x : 前(-) → 後(+)   0 が Mac mini の中心
@@ -68,12 +72,14 @@ LIP_CHAMFER = 2.0  # 受け皿端の面取り（差し込みのガイド）
 
 TIE_W = 8.0        # 前後の渡し材の幅（前後方向）
 TIE_GAP = 1.0      # 本体の前後端と渡し材の隙間
-STOP_H = 5.0       # 前後の渡し材を受け皿の上面より立ち上げる量。
-                   # 本体上面の余裕 FIT_TOP(1.5mm) より高いので、天板に付けたあとでは
-                   # 前から差し込めない。先に本体を入れてから天板に留める手順になる。
+STOP_H = 5.0       # 前後の渡し材を受け皿の上面より立ち上げる量。前後方向の滑り止め。
+                   # フランジは外向きなので本体の真上には肉が無く、本体は天板まで
+                   # LIFT_ROOM(7.5mm) 持ち上がる。STOP_H < LIFT_ROOM なので
+                   # 天板に留めたあとでも本体を出し入れできる（実機で確認済み）。
+                   # 完全に抱えたいなら STOP_H を LIFT_ROOM より大きくする。
 
 FLANGE_LEN = 16.0  # フランジの外向き突出量
-PAD_L = 34.0       # フランジ1枚の長さ（前後方向）
+PAD_L = 26.0       # フランジ1枚の長さ（前後方向）。リブ2枚の間がブリッジになる
 PAD_X = (-48.0, 48.0)   # フランジの中心位置（左右それぞれに2枚 = 計4枚）
 T_RIB = 6.0        # フランジを支える45°リブの厚み
 
@@ -85,15 +91,21 @@ CS_ANGLE_DEG = 90.0     # 皿面取りの頂角
 
 # 側板のルーバー（縦スリットの列）
 LOUVER = True
-LV_W = 7.0         # スリットの幅
-LV_PITCH = 12.0    # スリットのピッチ
+LV_W = 6.0         # スリットの幅
+LV_PITCH = 11.0    # スリットのピッチ
 LV_SPAN = 132.0    # スリット列の全長（前後方向）
-LV_MARGIN = 8.0    # スリットと底枠の間に残す帯の幅
+LV_MARGIN = 4.0    # スリットと底枠の間に残す帯の幅
 LV_TOP_GAP = 4.3   # スリット上端と45°リブの根元の間に残す帯の幅
 
 # 外側の縦角を丸める
 CORNER_R = 6.0     # 側板・渡し材でできる外形の四隅
 PAD_R = 4.0        # フランジとリブの角
+
+# 自己支持させたい面の傾き（水平から）。スライサーの既定しきい値は 55° 前後
+# （PrusaSlicer / OrcaSlicer 系）で、それ未満の下向き面にはサポートが付く。
+# 45° にすると全部サポート対象になるので、余裕を見て 60° に立てる。
+SELF_SUPPORT_DEG = 60.0
+SLICER_THRESHOLD_DEG = 55.0   # 検証で「サポートが付く」と判定するしきい値
 
 SECTIONS = 96      # 円筒・円錐の分割数
 CUT_EPS = 0.5      # 切削ソリッドを面から出す量。同一平面を避けてブーリアンを安定させる
@@ -113,7 +125,9 @@ PART_W = 2 * (WALL_OUT + FLANGE_LEN)        # 全幅（左右、フランジ含�
 SCREW_Y = WALL_OUT + FLANGE_LEN / 2         # ビス穴の左右位置
 
 CS_DEPTH = (CS_HEAD_D - HOLE_D) / 2.0 / np.tan(np.radians(CS_ANGLE_DEG / 2.0))
-RIB_Z0 = FLANGE_Z0 - FLANGE_LEN             # 45°リブの根元（フランジ幅と同じだけ下がる）
+LIFT_ROOM = TOTAL_H - (T_LIP + BODY_H)      # 本体を持ち上げられる量（天板まで）
+SELF_TAN = np.tan(np.radians(SELF_SUPPORT_DEG))
+RIB_Z0 = FLANGE_Z0 - FLANGE_LEN * SELF_TAN  # リブの根元。斜辺を SELF_SUPPORT_DEG に立てる
 LV_Z0 = T_LIP + LV_MARGIN                   # スリットの下端
 LV_Z1 = RIB_Z0 - LV_TOP_GAP                 # スリットの上端
 
@@ -185,23 +199,22 @@ def rounded_rect_prism_z(x0, x1, y0, y1, r, z0, z1):
 def louver_cut_y(y0, y1):
     """側板に開ける縦スリットの列。
 
-    上下を45°の山形にした縦長の六角形。矩形にすると天井が水平のブリッジになるが、
-    山形なら下向きの面がちょうど45°になって自己支持でき、ブリッジが1つも出ない。
-    幅が狭いので山の高さは幅の半分だけで済み、見た目もグリルらしくなる。
+    上下を山形にした縦長の六角形。矩形にすると天井が水平のブリッジになるが、
+    山形なら下向きの面が SELF_SUPPORT_DEG になって自己支持でき、ブリッジが1つも出ない。
     """
     n = int(LV_SPAN // LV_PITCH)
     half = LV_W / 2
+    gable = half * SELF_TAN
+    assert LV_Z1 - LV_Z0 > 2 * gable, "スリットの高さが山2つ分に足りない"
+    z_bot, z_top = LV_Z0 + gable, LV_Z1 - gable
     slots = []
     for i in range(n):
         cx = -(n - 1) * LV_PITCH / 2 + i * LV_PITCH
-        slots.append(aabox(cx - half, cx + half, y0, y1,
-                           LV_Z0 + half - 0.3, LV_Z1 - half + 0.3))
+        slots.append(aabox(cx - half, cx + half, y0, y1, z_bot - 0.3, z_top + 0.3))
         slots.append(prism_along(                                    # 上の山
-            [(LV_Z1 - half, cx - half), (LV_Z1 - half, cx + half), (LV_Z1, cx)],
-            y0, y1, axis="y"))
+            [(z_top, cx - half), (z_top, cx + half), (LV_Z1, cx)], y0, y1, axis="y"))
         slots.append(prism_along(                                    # 下の山
-            [(LV_Z0 + half, cx - half), (LV_Z0 + half, cx + half), (LV_Z0, cx)],
-            y0, y1, axis="y"))
+            [(z_bot, cx - half), (z_bot, cx + half), (LV_Z0, cx)], y0, y1, axis="y"))
     return trimesh.boolean.union(slots)
 
 
@@ -311,12 +324,12 @@ def build_assembly(mount):
 
 
 # ------------------------------------------------------------------ 検証・出力
-def floating_patches(mesh, limit_deg=46.0):
+def floating_patches(mesh, limit_deg=SLICER_THRESHOLD_DEG):
     """宙に浮いた下向きの面を、連結した塊（パッチ）ごとに切り出す。
 
     造形方向を +Z とし、水平から limit_deg 未満の下向きの面を対象にする。
-    しきい値をちょうど 45° にすると、45°の斜面が浮動小数の誤差で引っかかるので
-    少し寝かせた 46° を既定にしている（45°の面は自己支持できるため除外したい）。
+    既定のしきい値はスライサーの既定値（55°前後）に合わせてある。自分で決めた 45° を
+    基準にしていたら、実際にスライスしたときにサポートが付いてしまった。
     プレートに接地している最下面も除く。
     """
     tri = mesh.vertices[mesh.faces]
@@ -415,9 +428,18 @@ def check(mesh, label):
     print(f"  1辺の共有面数    : {shares}  (2 のみが正常)")
     print(f"  退化三角形       : {degenerate}")
 
+    t = back.vertices[back.faces]
+    fn = np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0])
+    fl = np.linalg.norm(fn, axis=1)
+    ok = fl > 1e-9
+    fnz = fn[ok, 2] / fl[ok]
+    dn = (fnz < -1e-6) & (t[ok, :, 2].max(axis=1) > lo[2] + 1e-6)
+    slope = np.degrees(np.arccos(np.clip(-fnz[dn], -1, 1))) if dn.any() else np.array([90.0])
+    print(f"  下向き面の最小傾き: {slope.min():.1f}° （水平から。{SLICER_THRESHOLD_DEG:.0f}° 未満にサポートが付く）")
+
     patches = floating_patches(back)
     total = sum(p["area"] for p in patches)
-    print(f"  宙に浮いた下向き面: {total / 100:.2f} cm2 / {len(patches)} 箇所")
+    print(f"  しきい値未満の面  : {total / 100:.2f} cm2 / {len(patches)} 箇所")
     cantilever = 0.0
     longest = 0.0
     for p in patches:
@@ -459,7 +481,9 @@ def main():
     print(f"側板内面の間隔    : {WALL_IN * 2:.1f} mm （本体 {BODY_W} + 片側 {FIT_SIDE}）")
     print(f"受け皿の受け幅    : {LIP_LEN - FIT_SIDE:.1f} mm （底面にかかるのはこの縁だけ）")
     print(f"受け皿端と本体端  : {LIP_INSET:.1f} mm （電源ボタンの逃げ）")
-    print(f"前後のストッパー  : 受け皿の上面から {STOP_H:.1f} mm （本体上面の余裕は {FIT_TOP:.1f} mm）")
+    print(f"前後のストッパー  : 受け皿の上面から {STOP_H:.1f} mm")
+    print(f"持ち上げ余裕      : 天板まで {LIFT_ROOM:.1f} mm → ストッパーは"
+          f"{'越えられる（天板に留めたあとでも出し入れ可）' if STOP_H < LIFT_ROOM else '越えられない（抱え込み）'}")
     print(f"ビス穴            : {len(PAD_X) * 2} 箇所 (x=±{abs(PAD_X[0]):.0f}, y=±{SCREW_Y:.1f})")
     print(f"皿面取り          : 開口 {CS_HEAD_D} mm / 深さ {CS_DEPTH:.2f} mm / 残り肉厚 {T_FLANGE - CS_DEPTH:.2f} mm")
     print(f"材料              : {mount.volume / 1000:.1f} cm3 ≒ PLA {mount.volume / 1000 * 1.24:.0f} g / PETG {mount.volume / 1000 * 1.27:.0f} g")
