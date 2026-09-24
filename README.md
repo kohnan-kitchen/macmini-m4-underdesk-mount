@@ -2,6 +2,8 @@
 
 Mac mini M4 をデスク天板の裏に吊り下げる一体成型のクレードル。木ビス4本で留め、本体は上から落とし込む。サポートなしで印刷できる。
 
+![設置した実物](photo_installed.jpg)
+
 ![マウント本体](mount_preview.png)
 
 ![横から見た断面](section_side.png)
@@ -64,7 +66,6 @@ python3 preview.py macmini_underdesk_mount.stl mount_preview.png --dir=-0.55,0.7
 ## TODO
 
 - 底面の円形カバーへの嵌合。アルミリムの幅と段差の実測待ち
-- 画像を実物の写真に差し替え
 
 ## 出典
 
